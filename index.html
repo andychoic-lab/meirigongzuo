@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f5f5f7">
+<title>汽车工作记录</title>
+<style>
+:root{--bg:#f5f5f7;--card:#fff;--text:#111;--sub:#777;--line:#e8e8eb;--accent:#007aff;--danger:#ff3b30}
+@media(prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--text:#f5f5f7;--sub:#98989f;--line:#38383a}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif}
+.app{max-width:680px;margin:auto;padding:calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 24px)}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+h1{font-size:30px;margin:0;font-weight:750;letter-spacing:-1px}
+.count{color:var(--sub);font-size:14px;margin-top:5px}
+button{border:0;font:inherit;cursor:pointer}
+.add{background:var(--accent);color:#fff;border-radius:18px;width:48px;height:48px;font-size:28px;box-shadow:0 4px 14px #007aff33}
+.search{display:flex;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:0 13px;margin-bottom:14px}
+.search span{color:var(--sub);font-size:19px}
+.search input{width:100%;border:0;outline:0;background:transparent;color:var(--text);padding:13px 9px;font-size:16px}
+.list{display:flex;flex-direction:column;gap:10px}
+.item{background:var(--card);border-radius:17px;padding:15px;position:relative;border:1px solid var(--line)}
+.itemtop{display:flex;justify-content:space-between;gap:10px}
+.car{font-weight:700;font-size:17px}
+.date{font-size:12px;color:var(--sub);white-space:nowrap}
+.meta{font-size:14px;color:var(--sub);margin-top:7px}
+.detail{font-size:15px;line-height:1.55;margin-top:9px;white-space:pre-wrap;word-break:break-word}
+.actions{display:flex;gap:8px;margin-top:12px}
+.actions button{background:var(--bg);color:var(--sub);border-radius:10px;padding:7px 12px;font-size:13px}
+.actions .del{color:var(--danger)}
+.empty{text-align:center;color:var(--sub);padding:55px 20px}
+.modal{position:fixed;inset:0;background:#0006;display:none;align-items:flex-end;z-index:10}
+.modal.show{display:flex}
+.sheet{background:var(--card);width:100%;max-width:680px;margin:auto;border-radius:24px 24px 0 0;padding:20px 16px calc(env(safe-area-inset-bottom) + 20px);max-height:92vh;overflow:auto}
+.sheet h2{margin:0 0 18px;font-size:21px}
+label{display:block;font-size:13px;color:var(--sub);margin:14px 3px 7px}
+input,textarea{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:13px;padding:13px;font-size:16px;outline:none}
+textarea{min-height:125px;resize:vertical;line-height:1.5}
+.row{display:flex;gap:10px}
+.row>div{flex:1}
+.save{width:100%;background:var(--accent);color:#fff;padding:14px;border-radius:14px;margin-top:18px;font-weight:650}
+.cancel{width:100%;background:transparent;color:var(--sub);padding:12px;margin-top:4px}
+
+.head-actions{display:flex;gap:8px;align-items:center}.more{width:42px;height:42px;border-radius:14px;background:var(--card);color:var(--text);font-size:18px;letter-spacing:2px;border:1px solid var(--line)}.menu{display:none;position:absolute;right:16px;top:82px;z-index:20;background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 12px 35px #0003;min-width:150px}.menu.show{display:block}.menu button{display:block;width:100%;padding:13px 16px;text-align:left;background:var(--card);color:var(--text);border-bottom:1px solid var(--line);font-size:15px}.menu button:last-of-type{border-bottom:0}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+<div><h1>工作记录</h1><div class="count" id="count">0 条记录</div></div>
+<div class="head-actions"><button class="more" onclick="toggleMenu()">•••</button><button class="add" onclick="openForm()">＋</button></div>
+<div class="menu" id="menu"><button onclick="backupData()">备份数据</button><button onclick="document.getElementById('restoreFile').click()">导入数据</button><button onclick="exportData()">导出数据</button><button onclick="closeMenu()">取消</button><input type="file" id="restoreFile" accept=".json,application/json" hidden onchange="restoreData(event)">
+</header>
+<div class="search"><span>⌕</span><input id="search" placeholder="搜索车型、货源地、详情…" oninput="render()"></div>
+<div id="list" class="list"></div>
+</div>
+
+<div class="modal" id="modal" onclick="if(event.target===this)closeForm()">
+<div class="sheet">
+<h2 id="formTitle">新增记录</h2>
+<input type="hidden" id="editId">
+<div class="row">
+<div><label>日期</label><input type="date" id="date"></div>
+<div><label>时间</label><input type="time" id="time"></div>
+</div>
+<label>货源地</label><input id="source" placeholder="例如：盐城、上海、南京">
+<label>车辆品牌和系列</label><input id="car" placeholder="例如：奔驰 GLC、比亚迪宋L">
+<label>详情</label><textarea id="detail" placeholder="记录价格、配置、车况、颜色、补贴等行情信息…"></textarea>
+<button class="save" onclick="saveRecord()">保存记录</button>
+<button class="cancel" onclick="closeForm()">取消</button>
+</div></div>
+
+<script>
+const KEY='car_work_records_v1';
+let records=JSON.parse(localStorage.getItem(KEY)||'[]');
+
+function pad(n){return String(n).padStart(2,'0')}
+function nowDate(){let d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+function nowTime(){let d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}`}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+function openForm(id=null){
+ document.getElementById('modal').classList.add('show');
+ document.getElementById('formTitle').textContent=id?'编辑记录':'新增记录';
+ document.getElementById('editId').value=id||'';
+ let r=records.find(x=>x.id===id);
+ document.getElementById('date').value=r?.date||nowDate();
+ document.getElementById('time').value=r?.time||nowTime();
+ document.getElementById('source').value=r?.source||'';
+ document.getElementById('car').value=r?.car||'';
+ document.getElementById('detail').value=r?.detail||'';
+ setTimeout(()=>document.getElementById('source').focus(),150);
+}
+function closeForm(){document.getElementById('modal').classList.remove('show')}
+function saveRecord(){
+ let date=document.getElementById('date').value, time=document.getElementById('time').value;
+ let source=document.getElementById('source').value.trim(), car=document.getElementById('car').value.trim(), detail=document.getElementById('detail').value.trim();
+ if(!car){alert('请填写车辆品牌和系列');return}
+ let id=document.getElementById('editId').value;
+ if(id){let r=records.find(x=>x.id===id);Object.assign(r,{date,time,source,car,detail})}
+ else records.push({id:Date.now().toString(),date,time,source,car,detail})
+ records.sort((a,b)=>(b.date+' '+b.time).localeCompare(a.date+' '+a.time));
+ localStorage.setItem(KEY,JSON.stringify(records)); closeForm(); render();
+}
+function editRecord(id){openForm(id)}
+function deleteRecord(id){
+ if(confirm('确定删除这条记录吗？')){records=records.filter(x=>x.id!==id);localStorage.setItem(KEY,JSON.stringify(records));render()}
+}
+function toggleMenu(){document.getElementById('menu').classList.toggle('show')}
+function closeMenu(){document.getElementById('menu').classList.remove('show')}
+document.addEventListener('click',e=>{if(document.getElementById('menu').classList.contains('show')&&!e.target.closest('.menu')&&!e.target.closest('.more'))closeMenu()});
+function makeBackup(){return {app:'汽车销售每日工作记录',version:1,exportedAt:new Date().toISOString(),records:records}}
+function downloadJSON(filename){const blob=new Blob([JSON.stringify(makeBackup(),null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function backupData(){closeMenu();downloadJSON(`汽车销售工作记录_备份_${nowDate()}.json`);}
+function exportData(){closeMenu();downloadJSON(`汽车销售工作记录_导出_${nowDate()}.json`);}
+function restoreData(ev){closeMenu();const file=ev.target.files[0];ev.target.value='';if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const data=JSON.parse(reader.result);const incoming=Array.isArray(data)?data:data.records;if(!Array.isArray(incoming))throw 0;if(!confirm(`准备导入 ${incoming.length} 条记录。当前记录将被替换，是否继续？`))return;records=incoming.filter(r=>r&&r.car).map(r=>({id:String(r.id||Date.now()+Math.random()),date:r.date||nowDate(),time:r.time||'00:00',source:r.source||'',car:r.car||'',detail:r.detail||''}));records.sort((a,b)=>(b.date+' '+b.time).localeCompare(a.date+' '+a.time));localStorage.setItem(KEY,JSON.stringify(records));render();alert('导入成功')}catch(e){alert('文件格式不正确，请选择本 App 导出的 JSON 文件')}};reader.readAsText(file)}
+function render(){
+ let q=document.getElementById('search').value.trim().toLowerCase();
+ let arr=records.filter(r=>[r.date,r.time,r.source,r.car,r.detail].join(' ').toLowerCase().includes(q));
+ document.getElementById('count').textContent=`共 ${records.length} 条记录${q?' · 搜索到 '+arr.length+' 条':''}`;
+ document.getElementById('list').innerHTML=arr.length?arr.map(r=>`
+ <article class="item">
+  <div class="itemtop"><div class="car">${esc(r.car)}</div><div class="date">${esc(r.date)} ${esc(r.time)}</div></div>
+  ${r.source?`<div class="meta">📍 ${esc(r.source)}</div>`:''}
+  ${r.detail?`<div class="detail">${esc(r.detail)}</div>`:''}
+  <div class="actions"><button onclick="editRecord('${r.id}')">编辑</button><button class="del" onclick="deleteRecord('${r.id}')">删除</button></div>
+ </article>`).join(''):`<div class="empty">${q?'没有找到相关记录':'还没有工作记录<br><br>点击右上角 ＋ 开始记录'}</div>`;
+}
+render();
+</script>
+</body>
+</html>
